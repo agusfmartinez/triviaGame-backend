@@ -1,9 +1,13 @@
 const questions = require('../questions/questions.json');
+const STATES = require('./states');
 
 const CATEGORY_VOTE_TIME = 15;
+const QUESTION_INTRO_TIME = 3;
 const QUESTION_TIME = 20;
-const RESULT_TIME = 5;
-const QUESTIONS_PER_GAME = 5;
+const RESULT_TIME = 10;
+const SCOREBOARD_TIME = 30;
+const QUESTIONS_PER_ROUND = 4;
+const TOTAL_ROUNDS = 3;
 const BASE_SCORE = 1000;
 const SPEED_BONUS = 500;
 
@@ -21,7 +25,7 @@ class GameManager {
     this.room = room;
     this.io = io;
     this.timer = null;
-    this.phase = 'LOBBY';
+    this.phase = STATES.LOBBY;
     this.scores = {};
     this.currentQuestionIdx = 0;
     this.gameQuestions = [];
@@ -29,24 +33,31 @@ class GameManager {
     this.categoryVotes = {};
     this.answers = {};
     this.questionStartTime = null;
+    this.readyPlayers = new Set();
+    this.currentRound = 0;
+    this.rematchVotes = new Set();
+    this.rematchTimer = null;
   }
 
   start() {
+    this.currentRound = 1;
     this.room.players.forEach(p => { this.scores[p.id] = 0; });
     this.startCategoryVote();
   }
 
   startCategoryVote() {
-    this.phase = 'CATEGORY_VOTE';
+    this.phase = STATES.CATEGORY_VOTE;
     this.categoryVotes = {};
 
     const allKeys = Object.keys(questions.categories);
     this.availableCategories = shuffle(allKeys).slice(0, 4);
 
     this.broadcast('phase_changed', {
-      phase: 'CATEGORY_VOTE',
+      phase: STATES.CATEGORY_VOTE,
       categories: this.availableCategories.map(k => questions.categories[k].name),
       votes: [0, 0, 0, 0],
+      currentRound: this.currentRound,
+      totalRounds: TOTAL_ROUNDS,
       timeLimit: CATEGORY_VOTE_TIME,
     });
 
@@ -54,7 +65,7 @@ class GameManager {
   }
 
   voteCategory(playerId, categoryIndex) {
-    if (this.phase !== 'CATEGORY_VOTE') return;
+    if (this.phase !== STATES.CATEGORY_VOTE) return;
     if (categoryIndex < 0 || categoryIndex > 3) return;
 
     this.categoryVotes[playerId] = categoryIndex;
@@ -69,31 +80,49 @@ class GameManager {
     const tally = [0, 0, 0, 0];
     Object.values(this.categoryVotes).forEach(v => tally[v]++);
 
-    // tie-break: random among tied winners
     const max = Math.max(...tally);
     const tied = tally.reduce((acc, v, i) => (v === max ? [...acc, i] : acc), []);
     const winnerIdx = tied[Math.floor(Math.random() * tied.length)];
     const winnerKey = this.availableCategories[winnerIdx];
+    const winnerName = questions.categories[winnerKey].name;
 
-    this.gameQuestions = shuffle(questions.categories[winnerKey].questions).slice(0, QUESTIONS_PER_GAME);
+    this.gameQuestions = shuffle(questions.categories[winnerKey].questions).slice(0, QUESTIONS_PER_ROUND);
     this.currentQuestionIdx = 0;
 
-    this.startQuestion();
+    this.startQuestionIntro(winnerName);
   }
 
-  startQuestion() {
+  startQuestionIntro(categoryName) {
     if (this.currentQuestionIdx >= this.gameQuestions.length) {
       return this.endGame();
     }
 
-    this.phase = 'QUESTION_ACTIVE';
+    this.phase = STATES.QUESTION_INTRO;
+    this.answers = {};
+
+    const q = this.gameQuestions[this.currentQuestionIdx];
+
+    this.broadcast('phase_changed', {
+      phase: STATES.QUESTION_INTRO,
+      questionNumber: this.currentQuestionIdx + 1,
+      totalQuestions: this.gameQuestions.length,
+      categoryName: categoryName || null,
+      question: q.question,
+      timeLimit: QUESTION_INTRO_TIME,
+    });
+
+    this.startTimer(QUESTION_INTRO_TIME, () => this.startQuestionActive());
+  }
+
+  startQuestionActive() {
+    this.phase = STATES.QUESTION_ACTIVE;
     this.answers = {};
     this.questionStartTime = Date.now();
 
     const q = this.gameQuestions[this.currentQuestionIdx];
 
     this.broadcast('phase_changed', {
-      phase: 'QUESTION_ACTIVE',
+      phase: STATES.QUESTION_ACTIVE,
       questionNumber: this.currentQuestionIdx + 1,
       totalQuestions: this.gameQuestions.length,
       question: q.question,
@@ -105,7 +134,7 @@ class GameManager {
   }
 
   submitAnswer(playerId, answerIndex) {
-    if (this.phase !== 'QUESTION_ACTIVE') return;
+    if (this.phase !== STATES.QUESTION_ACTIVE) return;
     if (this.answers[playerId] !== undefined) return;
     if (answerIndex < 0 || answerIndex > 3) return;
 
@@ -122,18 +151,18 @@ class GameManager {
   }
 
   endQuestion() {
-    this.phase = 'QUESTION_RESULT';
+    this.phase = STATES.QUESTION_RESULT;
     const q = this.gameQuestions[this.currentQuestionIdx];
 
-    const roundScores = {};
     const playerAnswers = {};
 
     this.room.players.forEach(p => {
       const answer = this.answers[p.id];
       const correct = answer ? answer.answerIndex === q.correct : false;
-      const points = correct ? Math.round(BASE_SCORE + (answer.timeLeft / QUESTION_TIME) * SPEED_BONUS) : 0;
+      const points = correct
+        ? Math.round(BASE_SCORE + (answer.timeLeft / QUESTION_TIME) * SPEED_BONUS)
+        : 0;
 
-      roundScores[p.id] = points;
       this.scores[p.id] = (this.scores[p.id] || 0) + points;
 
       playerAnswers[p.id] = {
@@ -141,35 +170,140 @@ class GameManager {
         answerIndex: answer ? answer.answerIndex : null,
         correct,
         points,
+        timeSpent: answer ? Math.round((QUESTION_TIME - answer.timeLeft) * 10) / 10 : null,
       };
     });
 
     this.broadcast('phase_changed', {
-      phase: 'QUESTION_RESULT',
+      phase: STATES.QUESTION_RESULT,
       questionNumber: this.currentQuestionIdx + 1,
       totalQuestions: this.gameQuestions.length,
       question: q.question,
       options: q.options,
       correctIndex: q.correct,
       playerAnswers,
-      roundScores,
       scoreboard: this.getScoreboard(),
       timeLimit: RESULT_TIME,
     });
 
     this.currentQuestionIdx++;
-    this.startTimer(RESULT_TIME, () => this.startQuestion());
+    this.startTimer(RESULT_TIME, () => this.showScoreboard());
+  }
+
+  showScoreboard() {
+    this.phase = STATES.SCOREBOARD;
+    this.readyPlayers = new Set();
+    const scoreboard = this.getScoreboard();
+    const isEndOfRound = this.currentQuestionIdx >= this.gameQuestions.length;
+    const isLast = isEndOfRound && this.currentRound >= TOTAL_ROUNDS;
+
+    this.broadcast('phase_changed', {
+      phase: STATES.SCOREBOARD,
+      scoreboard,
+      currentRound: this.currentRound,
+      totalRounds: TOTAL_ROUNDS,
+      isEndOfRound,
+      isLast,
+      readyCount: 0,
+      totalPlayers: this.room.players.length,
+      timeLimit: SCOREBOARD_TIME,
+    });
+
+    this.startTimer(SCOREBOARD_TIME, () => this.advanceFromScoreboard());
+  }
+
+  markReady(playerId) {
+    if (this.phase !== STATES.SCOREBOARD) return;
+    this.readyPlayers.add(playerId);
+
+    this.broadcast('ready_update', {
+      readyCount: this.readyPlayers.size,
+      totalPlayers: this.room.players.length,
+    });
+
+    if (this.readyPlayers.size >= this.room.players.length) {
+      this.clearTimer();
+      this.advanceFromScoreboard();
+    }
+  }
+
+  advanceFromScoreboard() {
+    if (this.currentQuestionIdx < this.gameQuestions.length) {
+      this.startQuestionIntro(null);
+    } else if (this.currentRound >= TOTAL_ROUNDS) {
+      this.endGame();
+    } else {
+      this.currentRound++;
+      this.startCategoryVote();
+    }
   }
 
   endGame() {
-    this.phase = 'GAME_OVER';
+    this.phase = STATES.GAME_OVER;
     const scoreboard = this.getScoreboard();
 
     this.broadcast('phase_changed', {
-      phase: 'GAME_OVER',
+      phase: STATES.GAME_OVER,
       scoreboard,
       winner: scoreboard[0] || null,
     });
+  }
+
+  skip() {
+    this.clearTimer();
+    switch (this.phase) {
+      case STATES.CATEGORY_VOTE:  this.endCategoryVote(); break;
+      case STATES.QUESTION_INTRO: this.startQuestionActive(); break;
+      case STATES.QUESTION_ACTIVE: this.endQuestion(); break;
+      case STATES.QUESTION_RESULT: this.showScoreboard(); break;
+      case STATES.SCOREBOARD: this.advanceFromScoreboard(); break;
+      default: break;
+    }
+  }
+
+  voteRematch(playerId) {
+    if (this.phase !== STATES.GAME_OVER) return;
+    if (this.rematchVotes.has(playerId)) return;
+
+    const isFirst = this.rematchVotes.size === 0;
+    this.rematchVotes.add(playerId);
+
+    this.broadcast('rematch_update', {
+      count: this.rematchVotes.size,
+      totalPlayers: this.room.players.length,
+    });
+
+    if (this.rematchVotes.size >= this.room.players.length) {
+      if (this.rematchTimer) clearTimeout(this.rematchTimer);
+      this.executeRematch();
+      return;
+    }
+
+    if (isFirst) {
+      this.broadcast('rematch_timer_started', { timeLimit: 30 });
+      this.rematchTimer = setTimeout(() => this.executeRematch(), 30000);
+    }
+  }
+
+  executeRematch() {
+    const voterIds = new Set(this.rematchVotes);
+    const allPlayers = [...this.room.players];
+
+    allPlayers.forEach(p => {
+      if (!voterIds.has(p.id)) {
+        this.io.to(p.id).emit('go_home');
+      }
+    });
+
+    this.room.players = allPlayers.filter(p => voterIds.has(p.id));
+    this.room.state = 'LOBBY';
+
+    if (this.room.players.length > 0) {
+      this.room.players.forEach(p => { p.isHost = false; });
+      this.room.players[0].isHost = true;
+      this.room.hostId = this.room.players[0].id;
+      this.io.to(this.room.code).emit('rematch_start', { room: this.room });
+    }
   }
 
   getScoreboard() {
@@ -207,6 +341,7 @@ class GameManager {
 
   destroy() {
     this.clearTimer();
+    if (this.rematchTimer) clearTimeout(this.rematchTimer);
   }
 }
 

@@ -42,6 +42,14 @@ function registerSocketHandlers(io) {
       console.log(`Game started in room ${result.room.code}`);
     });
 
+    socket.on('leave_room', () => {
+      const result = removePlayer(socket.id);
+      if (!result) return;
+      socket.emit('left_room');
+      if (result.deleted) return;
+      io.to(result.code).emit('room_updated', { room: result.room });
+    });
+
     socket.on('vote_category', ({ code, categoryIndex }) => {
       const game = activeGames.get(code?.toUpperCase());
       if (!game) return;
@@ -52,6 +60,25 @@ function registerSocketHandlers(io) {
       const game = activeGames.get(code?.toUpperCase());
       if (!game) return;
       game.submitAnswer(socket.id, answerIndex);
+    });
+
+    socket.on('ready_next', ({ code }) => {
+      const game = activeGames.get(code?.toUpperCase());
+      if (!game) return;
+      game.markReady(socket.id);
+    });
+
+    socket.on('vote_rematch', ({ code }) => {
+      const game = activeGames.get(code?.toUpperCase());
+      if (!game) return;
+      game.voteRematch(socket.id);
+    });
+
+    socket.on('dev_skip', ({ code }) => {
+      if (process.env.NODE_ENV === 'production') return;
+      const game = activeGames.get(code?.toUpperCase());
+      if (!game) return;
+      game.skip();
     });
 
     socket.on('disconnect', () => {
