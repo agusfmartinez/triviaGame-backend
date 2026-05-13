@@ -1,0 +1,209 @@
+{
+  "categories": {
+    "historia": {
+      "name": "Historia",
+      "questions": [
+        {
+          "id": "hist_1",
+          "question": "¿En qué año llegó Cristóbal Colón a América?",
+          "options": ["1488", "1498", "1492", "1506"],
+          "correct": 2
+        },
+        {
+          "id": "hist_2",
+          "question": "¿En qué año comenzó la Primera Guerra Mundial?",
+          "options": ["1914", "1918", "1912", "1920"],
+          "correct": 0
+        },
+        {
+          "id": "hist_3",
+          "question": "¿Qué civilización construyó Machu Picchu?",
+          "options": ["Azteca", "Inca", "Maya", "Olmeca"],
+          "correct": 1
+        },
+        {
+          "id": "hist_4",
+          "question": "¿En qué año cayó el Muro de Berlín?",
+          "options": ["1991", "1987", "1993", "1989"],
+          "correct": 3
+        },
+        {
+          "id": "hist_5",
+          "question": "¿Quién fue el primer presidente de los Estados Unidos?",
+          "options": ["Thomas Jefferson", "George Washington", "John Adams", "Benjamin Franklin"],
+          "correct": 1
+        },
+        {
+          "id": "hist_6",
+          "question": "¿Qué país lanzó el primer satélite artificial al espacio (Sputnik)?",
+          "options": ["Estados Unidos", "Alemania", "URSS", "Francia"],
+          "correct": 2
+        }
+      ]
+    },
+    "ciencia": {
+      "name": "Ciencia",
+      "questions": [
+        {
+          "id": "cien_1",
+          "question": "¿Cuántos huesos tiene el cuerpo humano adulto?",
+          "options": ["196", "206", "214", "220"],
+          "correct": 1
+        },
+        {
+          "id": "cien_2",
+          "question": "¿Cuál es el elemento más abundante en el universo?",
+          "options": ["Helio", "Oxígeno", "Carbono", "Hidrógeno"],
+          "correct": 3
+        },
+        {
+          "id": "cien_3",
+          "question": "¿A qué velocidad aproximada viaja la luz en el vacío?",
+          "options": ["200.000 km/s", "150.000 km/s", "300.000 km/s", "400.000 km/s"],
+          "correct": 2
+        },
+        {
+          "id": "cien_4",
+          "question": "¿Cuántos cromosomas tiene una célula humana normal?",
+          "options": ["23", "44", "48", "46"],
+          "correct": 3
+        },
+        {
+          "id": "cien_5",
+          "question": "¿Quién descubrió la penicilina?",
+          "options": ["Alexander Fleming", "Louis Pasteur", "Marie Curie", "Isaac Newton"],
+          "correct": 0
+        },
+        {
+          "id": "cien_6",
+          "question": "¿Cuál es el planeta más grande del sistema solar?",
+          "options": ["Saturno", "Júpiter", "Neptuno", "Urano"],
+          "correct": 1
+        }
+      ]
+    },
+    "geografia": {
+      "name": "Geografía",
+      "questions": [
+        {
+          "id": "geo_1",
+          "question": "¿Cuál es el país más grande del mundo en superficie?",
+          "options": ["Canadá", "China", "Estados Unidos", "Rusia"],
+          "correct": 3
+        },
+        {
+          "id": "geo_2",
+          "question": "¿Cuál es la montaña más alta del mundo?",
+          "options": ["K2", "Aconcagua", "Mont Blanc", "Everest"],
+          "correct": 3
+        },
+        {
+          "id": "geo_3",
+          "question": "¿Cuál es la capital de Australia?",
+          "options": ["Sídney", "Melbourne", "Canberra", "Brisbane"],
+          "correct": 2
+        },
+        {
+          "id": "geo_4",
+          "question": "¿Cuál es el océano más grande del mundo?",
+          "options": ["Atlántico", "Pacífico", "Índico", "Ártico"],
+          "correct": 1
+        },
+        {
+          "id": "geo_5",
+          "question": "¿Cuántos países conforman el continente africano?",
+          "options": ["48", "62", "54", "38"],
+          "correct": 2
+        },
+        {
+          "id": "geo_6",
+          "question": "¿En qué país se encuentra la mayor parte del río Amazonas?",
+          "options": ["Colombia", "Perú", "Venezuela", "Brasil"],
+          "correct": 3
+        }
+      ]
+    },
+    "cultura_pop": {
+      "name": "Cultura Pop",
+      "questions": [
+        {
+          "id": "pop_1",
+          "question": "¿En qué año se lanzó el primer iPhone?",
+          "options": ["2005", "2007", "2009", "2003"],
+          "correct": 1
+        },
+        {
+          "id": "pop_2",
+          "question": "¿Quién escribió la saga de Harry Potter?",
+          "options": ["J.R.R. Tolkien", "C.S. Lewis", "J.K. Rowling", "Roald Dahl"],
+          "correct": 2
+        },
+        {
+          "id": "pop_3",
+          "question": "¿En qué año se lanzó oficialmente el videojuego Minecraft?",
+          "options": ["2009", "2013", "2011", "2007"],
+          "correct": 2
+        },
+        {
+          "id": "pop_4",
+          "question": "¿De qué país es el grupo de K-pop BTS?",
+          "options": ["Japón", "China", "Tailandia", "Corea del Sur"],
+          "correct": 3
+        },
+        {
+          "id": "pop_5",
+          "question": "¿Cuántas temporadas tiene la serie Breaking Bad?",
+          "options": ["4", "6", "3", "5"],
+          "correct": 3
+        },
+        {
+          "id": "pop_6",
+          "question": "¿Qué red social fue fundada por Mark Zuckerberg?",
+          "options": ["Twitter", "Instagram", "Facebook", "TikTok"],
+          "correct": 2
+        }
+      ]
+    },
+    "deportes": {
+      "name": "Deportes",
+      "questions": [
+        {
+          "id": "dep_1",
+          "question": "¿Cuántos jugadores hay en cancha por equipo en el fútbol?",
+          "options": ["10", "12", "9", "11"],
+          "correct": 3
+        },
+        {
+          "id": "dep_2",
+          "question": "¿Cuántos aros hay en la bandera olímpica?",
+          "options": ["4", "6", "5", "3"],
+          "correct": 2
+        },
+        {
+          "id": "dep_3",
+          "question": "¿En qué deporte se usa un 'puck'?",
+          "options": ["Polo", "Hockey sobre hielo", "Lacrosse", "Squash"],
+          "correct": 1
+        },
+        {
+          "id": "dep_4",
+          "question": "¿En qué año se realizó el primer Mundial de Fútbol?",
+          "options": ["1926", "1934", "1922", "1930"],
+          "correct": 3
+        },
+        {
+          "id": "dep_5",
+          "question": "¿Cuántos minutos dura cada cuarto en la NBA?",
+          "options": ["10", "12", "15", "8"],
+          "correct": 1
+        },
+        {
+          "id": "dep_6",
+          "question": "¿En qué país se originó el tenis moderno?",
+          "options": ["Francia", "Australia", "Estados Unidos", "Inglaterra"],
+          "correct": 3
+        }
+      ]
+    }
+  }
+}
