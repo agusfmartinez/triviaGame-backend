@@ -10,6 +10,12 @@ const QUESTIONS_PER_ROUND = 4;
 const TOTAL_ROUNDS = 3;
 const BASE_SCORE = 1000;
 const SPEED_BONUS = 500;
+const PYRAMID_INTRO_TIME = 30;
+const PYRAMID_QUESTION_TIME = 15;
+const PYRAMID_RESULT_TIME = 8;
+const PYRAMID_SCOREBOARD_TIME = 30;
+const PYRAMID_MAX_QUESTIONS = 30;
+const PYRAMID_TOP_MOVERS = 3;
 
 function shuffle(arr) {
   const a = [...arr];
@@ -37,6 +43,15 @@ class GameManager {
     this.currentRound = 0;
     this.rematchVotes = new Set();
     this.rematchTimer = null;
+    this.pyramidPositions = {};
+    this.pyramidHeight = 0;
+    this.pyramidQuestions = [];
+    this.pyramidQuestionIdx = 0;
+    this.pyramidAnswers = {};
+    this.pyramidWinnerId = null;
+    this.pyramidReadyVotes = new Set();
+    this.pyramidReadyTimer = null;
+    this.pyramidReadyPlayers = new Set();
   }
 
   start() {
@@ -93,10 +108,6 @@ class GameManager {
   }
 
   startQuestionIntro(categoryName) {
-    if (this.currentQuestionIdx >= this.gameQuestions.length) {
-      return this.endGame();
-    }
-
     this.phase = STATES.QUESTION_INTRO;
     this.answers = {};
 
@@ -143,11 +154,6 @@ class GameManager {
 
     this.answers[playerId] = { answerIndex, timeLeft };
     this.broadcast('answer_submitted', { count: Object.keys(this.answers).length });
-
-    if (Object.keys(this.answers).length >= this.room.players.length) {
-      this.clearTimer();
-      this.endQuestion();
-    }
   }
 
   endQuestion() {
@@ -231,21 +237,225 @@ class GameManager {
     if (this.currentQuestionIdx < this.gameQuestions.length) {
       this.startQuestionIntro(null);
     } else if (this.currentRound >= TOTAL_ROUNDS) {
-      this.endGame();
+      this.startPyramidIntro();
     } else {
       this.currentRound++;
       this.startCategoryVote();
     }
   }
 
-  endGame() {
-    this.phase = STATES.GAME_OVER;
+  startPyramidIntro() {
+    this.phase = STATES.PYRAMID_INTRO;
+    this.pyramidReadyVotes = new Set();
+    if (this.pyramidReadyTimer) clearTimeout(this.pyramidReadyTimer);
+    this.pyramidReadyTimer = null;
+
     const scoreboard = this.getScoreboard();
+    const n = this.room.players.length;
+    this.pyramidHeight = n * 2;
+
+    scoreboard.forEach((p, i) => {
+      this.pyramidPositions[p.id] = { nickname: p.nickname, position: n - i };
+    });
+
+    const allQuestions = Object.values(questions.categories).flatMap(c => c.questions);
+    this.pyramidQuestions = shuffle(allQuestions);
+    this.pyramidQuestionIdx = 0;
+    this.pyramidWinnerId = null;
+
+    this.broadcast('phase_changed', {
+      phase: STATES.PYRAMID_INTRO,
+      positions: this.pyramidPositions,
+      pyramidHeight: this.pyramidHeight,
+      readyCount: 0,
+      totalPlayers: this.room.players.length,
+      timeLimit: PYRAMID_INTRO_TIME,
+    });
+  }
+
+  votePyramidStart(playerId) {
+    if (this.phase !== STATES.PYRAMID_INTRO) return;
+    if (this.pyramidReadyVotes.has(playerId)) return;
+
+    const isFirst = this.pyramidReadyVotes.size === 0;
+    this.pyramidReadyVotes.add(playerId);
+
+    this.broadcast('pyramid_intro_update', {
+      readyCount: this.pyramidReadyVotes.size,
+      totalPlayers: this.room.players.length,
+    });
+
+    if (this.pyramidReadyVotes.size >= this.room.players.length) {
+      if (this.pyramidReadyTimer) clearTimeout(this.pyramidReadyTimer);
+      this.startPyramidQuestion();
+      return;
+    }
+
+    if (isFirst) {
+      this.startTimer(PYRAMID_INTRO_TIME, () => this.startPyramidQuestion());
+    }
+  }
+
+  startPyramidQuestion() {
+    this.phase = STATES.FINAL_PYRAMID;
+    this.pyramidAnswers = {};
+    this.questionStartTime = Date.now();
+
+    const q = this.pyramidQuestions[this.pyramidQuestionIdx % this.pyramidQuestions.length];
+
+    this.broadcast('phase_changed', {
+      phase: STATES.FINAL_PYRAMID,
+      question: q.question,
+      options: q.options,
+      questionNumber: this.pyramidQuestionIdx + 1,
+      totalPlayers: this.room.players.length,
+      timeLimit: PYRAMID_QUESTION_TIME,
+    });
+
+    this.startTimer(PYRAMID_QUESTION_TIME, () => this.endPyramidQuestion());
+  }
+
+  submitPyramidAnswer(playerId, answerIndex) {
+    if (this.phase !== STATES.FINAL_PYRAMID) return;
+    if (this.pyramidAnswers[playerId] !== undefined) return;
+    if (answerIndex < 0 || answerIndex > 3) return;
+
+    const elapsed = (Date.now() - this.questionStartTime) / 1000;
+    this.pyramidAnswers[playerId] = { answerIndex, elapsed };
+    this.broadcast('answer_submitted', { count: Object.keys(this.pyramidAnswers).length });
+  }
+
+  endPyramidQuestion() {
+    const q = this.pyramidQuestions[this.pyramidQuestionIdx % this.pyramidQuestions.length];
+
+    const atTop = new Set(
+      this.room.players
+        .filter(p => (this.pyramidPositions[p.id]?.position || 0) >= this.pyramidHeight)
+        .map(p => p.id)
+    );
+
+    const correctAnswers = [];
+    const playerAnswers = {};
+
+    this.room.players.forEach(p => {
+      const answer = this.pyramidAnswers[p.id];
+      const correct = answer ? answer.answerIndex === q.correct : false;
+      playerAnswers[p.id] = {
+        nickname: this.pyramidPositions[p.id]?.nickname || p.nickname,
+        answerIndex: answer ? answer.answerIndex : null,
+        correct,
+        elapsed: answer ? answer.elapsed : null,
+      };
+      if (correct) correctAnswers.push({ id: p.id, elapsed: answer.elapsed });
+    });
+
+    correctAnswers.sort((a, b) => a.elapsed - b.elapsed);
+    const top3 = new Set(correctAnswers.slice(0, PYRAMID_TOP_MOVERS).map(a => a.id));
+
+    let winnerId = null;
+    const winnersAtTop = correctAnswers.filter(a => atTop.has(a.id));
+    if (winnersAtTop.length > 0) winnerId = winnersAtTop[0].id;
+
+    const movements = {};
+    this.room.players.forEach(p => {
+      const pos = this.pyramidPositions[p.id];
+      if (!pos) return;
+      const correct = playerAnswers[p.id].correct;
+
+      if (correct && top3.has(p.id)) {
+        pos.position = Math.min(pos.position + 1, this.pyramidHeight);
+        movements[p.id] = 1;
+      } else if (!correct) {
+        pos.position = Math.max(pos.position - 1, 1);
+        movements[p.id] = -1;
+      } else {
+        movements[p.id] = 0;
+      }
+    });
+
+    this.pyramidQuestionIdx++;
+    this.pyramidWinnerId = winnerId;
+
+    this.phase = STATES.PYRAMID_RESULT;
+    this.broadcast('phase_changed', {
+      phase: STATES.PYRAMID_RESULT,
+      movements,
+      correctIndex: q.correct,
+      options: q.options,
+      playerAnswers,
+      questionNumber: this.pyramidQuestionIdx,
+      winnerId,
+      winnerNickname: winnerId ? this.room.players.find(p => p.id === winnerId)?.nickname : null,
+      timeLimit: PYRAMID_RESULT_TIME,
+    });
+
+    this.startTimer(PYRAMID_RESULT_TIME, () => this.advanceFromPyramidResult());
+  }
+
+  advanceFromPyramidResult() {
+    if (this.pyramidWinnerId) {
+      this.endPyramidGame(this.pyramidWinnerId);
+    } else if (this.pyramidQuestionIdx >= PYRAMID_MAX_QUESTIONS) {
+      this.endPyramidGame(null);
+    } else {
+      this.showPyramidScoreboard();
+    }
+  }
+
+  showPyramidScoreboard() {
+    this.phase = STATES.PYRAMID_SCOREBOARD;
+    this.pyramidReadyPlayers = new Set();
+
+    this.broadcast('phase_changed', {
+      phase: STATES.PYRAMID_SCOREBOARD,
+      positions: this.pyramidPositions,
+      pyramidHeight: this.pyramidHeight,
+      questionNumber: this.pyramidQuestionIdx,
+      readyCount: 0,
+      totalPlayers: this.room.players.length,
+      timeLimit: PYRAMID_SCOREBOARD_TIME,
+    });
+
+    this.startTimer(PYRAMID_SCOREBOARD_TIME, () => this.startPyramidQuestion());
+  }
+
+  markReadyPyramid(playerId) {
+    if (this.phase !== STATES.PYRAMID_SCOREBOARD) return;
+    this.pyramidReadyPlayers.add(playerId);
+
+    this.broadcast('pyramid_ready_update', {
+      readyCount: this.pyramidReadyPlayers.size,
+      totalPlayers: this.room.players.length,
+    });
+
+    if (this.pyramidReadyPlayers.size >= this.room.players.length) {
+      this.clearTimer();
+      this.startPyramidQuestion();
+    }
+  }
+
+  endPyramidGame(winnerId) {
+    this.phase = STATES.GAME_OVER;
+
+    const scoreboard = this.room.players
+      .map(p => ({
+        id: p.id,
+        nickname: p.nickname,
+        position: this.pyramidPositions[p.id]?.position || 1,
+        score: this.scores[p.id] || 0,
+      }))
+      .sort((a, b) => b.position - a.position || b.score - a.score);
+
+    const winnerPlayer = winnerId
+      ? this.room.players.find(p => p.id === winnerId)
+      : this.room.players.find(p => p.id === scoreboard[0]?.id);
 
     this.broadcast('phase_changed', {
       phase: STATES.GAME_OVER,
       scoreboard,
-      winner: scoreboard[0] || null,
+      winner: winnerPlayer ? { id: winnerPlayer.id, nickname: winnerPlayer.nickname, score: this.scores[winnerPlayer.id] || 0 } : null,
+      fromPyramid: true,
+      pyramidHeight: this.pyramidHeight,
     });
   }
 
@@ -257,6 +467,10 @@ class GameManager {
       case STATES.QUESTION_ACTIVE: this.endQuestion(); break;
       case STATES.QUESTION_RESULT: this.showScoreboard(); break;
       case STATES.SCOREBOARD: this.advanceFromScoreboard(); break;
+      case STATES.PYRAMID_INTRO: this.startPyramidQuestion(); break;
+      case STATES.FINAL_PYRAMID: this.endPyramidQuestion(); break;
+      case STATES.PYRAMID_RESULT: this.advanceFromPyramidResult(); break;
+      case STATES.PYRAMID_SCOREBOARD: this.startPyramidQuestion(); break;
       default: break;
     }
   }
@@ -342,6 +556,7 @@ class GameManager {
   destroy() {
     this.clearTimer();
     if (this.rematchTimer) clearTimeout(this.rematchTimer);
+    if (this.pyramidReadyTimer) clearTimeout(this.pyramidReadyTimer);
   }
 }
 

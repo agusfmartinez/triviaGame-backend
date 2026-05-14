@@ -59,13 +59,29 @@ function registerSocketHandlers(io) {
     socket.on('submit_answer', ({ code, answerIndex }) => {
       const game = activeGames.get(code?.toUpperCase());
       if (!game) return;
-      game.submitAnswer(socket.id, answerIndex);
+      if (game.phase === 'FINAL_PYRAMID') {
+        game.submitPyramidAnswer(socket.id, answerIndex);
+      } else {
+        game.submitAnswer(socket.id, answerIndex);
+      }
     });
 
     socket.on('ready_next', ({ code }) => {
       const game = activeGames.get(code?.toUpperCase());
       if (!game) return;
       game.markReady(socket.id);
+    });
+
+    socket.on('vote_start_pyramid', ({ code }) => {
+      const game = activeGames.get(code?.toUpperCase());
+      if (!game) return;
+      game.votePyramidStart(socket.id);
+    });
+
+    socket.on('ready_pyramid', ({ code }) => {
+      const game = activeGames.get(code?.toUpperCase());
+      if (!game) return;
+      game.markReadyPyramid(socket.id);
     });
 
     socket.on('vote_rematch', ({ code }) => {
