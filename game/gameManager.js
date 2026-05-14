@@ -1,9 +1,10 @@
 const questions = require('../questions/questions.json');
 const STATES = require('./states');
+const { getAvailableAttacks, getRandomDefense } = require('./powerups');
 
 const CATEGORY_VOTE_TIME = 15;
 const QUESTION_INTRO_TIME = 3;
-const QUESTION_TIME = 20;
+const QUESTION_TIME = 15;
 const RESULT_TIME = 10;
 const SCOREBOARD_TIME = 30;
 const QUESTIONS_PER_ROUND = 4;
@@ -52,6 +53,10 @@ class GameManager {
     this.pyramidReadyVotes = new Set();
     this.pyramidReadyTimer = null;
     this.pyramidReadyPlayers = new Set();
+    this.playerDefenses = new Map();
+    this.pendingAttacks = [];
+    this.effectsTimeout = null;
+    this.lastAttackLog = [];
   }
 
   start() {
@@ -131,6 +136,8 @@ class GameManager {
     this.questionStartTime = Date.now();
 
     const q = this.gameQuestions[this.currentQuestionIdx];
+    const { activeEffects, attackLog } = this.processAttacks();
+    this.lastAttackLog = attackLog;
 
     this.broadcast('phase_changed', {
       phase: STATES.QUESTION_ACTIVE,
@@ -139,9 +146,16 @@ class GameManager {
       question: q.question,
       options: q.options,
       timeLimit: QUESTION_TIME,
+      activeEffects,
+      attackLog,
+      defenses: Object.fromEntries(this.playerDefenses),
     });
 
     this.startTimer(QUESTION_TIME, () => this.endQuestion());
+
+    if (Object.values(activeEffects).some(e => e.length > 0)) {
+      this.effectsTimeout = setTimeout(() => this.broadcast('effects_expired', {}), 5000);
+    }
   }
 
   submitAnswer(playerId, answerIndex) {
@@ -153,7 +167,7 @@ class GameManager {
     const timeLeft = Math.max(0, QUESTION_TIME - elapsed);
 
     this.answers[playerId] = { answerIndex, timeLeft };
-    this.broadcast('answer_submitted', { count: Object.keys(this.answers).length });
+    this.broadcast('answer_submitted', { count: Object.keys(this.answers).length, playerId });
   }
 
   endQuestion() {
@@ -189,6 +203,7 @@ class GameManager {
       correctIndex: q.correct,
       playerAnswers,
       scoreboard: this.getScoreboard(),
+      attackLog: this.lastAttackLog,
       timeLimit: RESULT_TIME,
     });
 
@@ -199,9 +214,22 @@ class GameManager {
   showScoreboard() {
     this.phase = STATES.SCOREBOARD;
     this.readyPlayers = new Set();
+    this.pendingAttacks = [];
     const scoreboard = this.getScoreboard();
     const isEndOfRound = this.currentQuestionIdx >= this.gameQuestions.length;
     const isLast = isEndOfRound && this.currentRound >= TOTAL_ROUNDS;
+
+    if (isEndOfRound && this.currentRound >= 3) {
+      scoreboard.slice(0, 3).forEach(p => {
+        if (!this.playerDefenses.get(p.id)) {
+          this.playerDefenses.set(p.id, getRandomDefense());
+        }
+      });
+    }
+
+    const availableAttacks = (!isEndOfRound && this.currentRound >= 2)
+      ? getAvailableAttacks(this.currentRound)
+      : [];
 
     this.broadcast('phase_changed', {
       phase: STATES.SCOREBOARD,
@@ -210,6 +238,8 @@ class GameManager {
       totalRounds: TOTAL_ROUNDS,
       isEndOfRound,
       isLast,
+      availableAttacks,
+      defenses: Object.fromEntries(this.playerDefenses),
       readyCount: 0,
       totalPlayers: this.room.players.length,
       timeLimit: SCOREBOARD_TIME,
@@ -302,6 +332,8 @@ class GameManager {
     this.questionStartTime = Date.now();
 
     const q = this.pyramidQuestions[this.pyramidQuestionIdx % this.pyramidQuestions.length];
+    const { activeEffects, attackLog } = this.processAttacks();
+    this.lastAttackLog = attackLog;
 
     this.broadcast('phase_changed', {
       phase: STATES.FINAL_PYRAMID,
@@ -310,9 +342,16 @@ class GameManager {
       questionNumber: this.pyramidQuestionIdx + 1,
       totalPlayers: this.room.players.length,
       timeLimit: PYRAMID_QUESTION_TIME,
+      activeEffects,
+      attackLog,
+      defenses: Object.fromEntries(this.playerDefenses),
     });
 
     this.startTimer(PYRAMID_QUESTION_TIME, () => this.endPyramidQuestion());
+
+    if (Object.values(activeEffects).some(e => e.length > 0)) {
+      this.effectsTimeout = setTimeout(() => this.broadcast('effects_expired', {}), 5000);
+    }
   }
 
   submitPyramidAnswer(playerId, answerIndex) {
@@ -322,7 +361,7 @@ class GameManager {
 
     const elapsed = (Date.now() - this.questionStartTime) / 1000;
     this.pyramidAnswers[playerId] = { answerIndex, elapsed };
-    this.broadcast('answer_submitted', { count: Object.keys(this.pyramidAnswers).length });
+    this.broadcast('answer_submitted', { count: Object.keys(this.pyramidAnswers).length, playerId });
   }
 
   endPyramidQuestion() {
@@ -366,8 +405,13 @@ class GameManager {
         pos.position = Math.min(pos.position + 1, this.pyramidHeight);
         movements[p.id] = 1;
       } else if (!correct) {
-        pos.position = Math.max(pos.position - 1, 1);
-        movements[p.id] = -1;
+        if (this.playerDefenses.get(p.id) === 'no_drop') {
+          this.playerDefenses.set(p.id, null);
+          movements[p.id] = 0;
+        } else {
+          pos.position = Math.max(pos.position - 1, 1);
+          movements[p.id] = -1;
+        }
       } else {
         movements[p.id] = 0;
       }
@@ -386,6 +430,7 @@ class GameManager {
       questionNumber: this.pyramidQuestionIdx,
       winnerId,
       winnerNickname: winnerId ? this.room.players.find(p => p.id === winnerId)?.nickname : null,
+      attackLog: this.lastAttackLog,
       timeLimit: PYRAMID_RESULT_TIME,
     });
 
@@ -405,6 +450,7 @@ class GameManager {
   showPyramidScoreboard() {
     this.phase = STATES.PYRAMID_SCOREBOARD;
     this.pyramidReadyPlayers = new Set();
+    this.pendingAttacks = [];
 
     this.broadcast('phase_changed', {
       phase: STATES.PYRAMID_SCOREBOARD,
@@ -413,6 +459,8 @@ class GameManager {
       questionNumber: this.pyramidQuestionIdx,
       readyCount: 0,
       totalPlayers: this.room.players.length,
+      availableAttacks: ['freeze', 'sticky', 'confuse', 'hide'],
+      defenses: Object.fromEntries(this.playerDefenses),
       timeLimit: PYRAMID_SCOREBOARD_TIME,
     });
 
@@ -553,10 +601,75 @@ class GameManager {
     this.io.to(this.room.code).emit(event, data);
   }
 
+  // ── Power-ups ──────────────────────────────────────────────────────────────
+
+  useAttack(attackerId, targetId, type) {
+    const inScoreboard = this.phase === STATES.SCOREBOARD || this.phase === STATES.PYRAMID_SCOREBOARD;
+    if (!inScoreboard) return { error: 'Fuera de tiempo' };
+    const available = this.phase === STATES.PYRAMID_SCOREBOARD
+      ? ['freeze', 'sticky', 'confuse', 'hide']
+      : getAvailableAttacks(this.currentRound);
+    if (!available.includes(type)) return { error: 'Ataque no disponible esta ronda' };
+    if (attackerId === targetId) return { error: 'No podés atacarte a vos mismo' };
+    if (!this.room.players.find(p => p.id === targetId)) return { error: 'Target inválido' };
+    if (this.pendingAttacks.find(a => a.attackerId === attackerId)) return { error: 'Ya usaste tu ataque' };
+
+    const attacker = this.room.players.find(p => p.id === attackerId);
+    this.pendingAttacks.push({ attackerId, attackerNickname: attacker.nickname, targetId, type });
+    return { ok: true };
+  }
+
+  processAttacks() {
+    const activeEffects = {};
+    const attackLog = [];
+
+    for (const attack of this.pendingAttacks) {
+      const { attackerNickname, targetId, type } = attack;
+      const target = this.room.players.find(p => p.id === targetId);
+      if (!target) continue;
+
+      if (this.playerDefenses.get(targetId) === 'shield') {
+        this.playerDefenses.set(targetId, null);
+        attackLog.push({ attackerNickname, targetNickname: target.nickname, type, blocked: true, wasted: false });
+        continue;
+      }
+
+      if (!activeEffects[targetId]) activeEffects[targetId] = [];
+      if (activeEffects[targetId].length >= 2) {
+        attackLog.push({ attackerNickname, targetNickname: target.nickname, type, blocked: false, wasted: true });
+        continue;
+      }
+
+      activeEffects[targetId].push(type);
+      attackLog.push({ attackerNickname, targetNickname: target.nickname, type, blocked: false, wasted: false });
+    }
+
+    this.pendingAttacks = [];
+    return { activeEffects, attackLog };
+  }
+
+  useBombita(playerId) {
+    const validPhase = this.phase === STATES.QUESTION_ACTIVE || this.phase === STATES.FINAL_PYRAMID;
+    if (!validPhase) return null;
+    if (this.playerDefenses.get(playerId) !== 'bombita') return null;
+
+    const q = this.phase === STATES.FINAL_PYRAMID
+      ? this.pyramidQuestions[this.pyramidQuestionIdx % this.pyramidQuestions.length]
+      : this.gameQuestions[this.currentQuestionIdx];
+    const wrongIndices = [0, 1, 2, 3].filter(i => i !== q.correct);
+    const toHide = shuffle(wrongIndices).slice(0, 2);
+
+    this.playerDefenses.set(playerId, null);
+    return toHide;
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+
   destroy() {
     this.clearTimer();
     if (this.rematchTimer) clearTimeout(this.rematchTimer);
     if (this.pyramidReadyTimer) clearTimeout(this.pyramidReadyTimer);
+    if (this.effectsTimeout) clearTimeout(this.effectsTimeout);
   }
 }
 

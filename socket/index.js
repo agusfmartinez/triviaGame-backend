@@ -84,6 +84,20 @@ function registerSocketHandlers(io) {
       game.markReadyPyramid(socket.id);
     });
 
+    socket.on('use_attack', ({ code, targetId, type }) => {
+      const game = activeGames.get(code?.toUpperCase());
+      if (!game) return;
+      const result = game.useAttack(socket.id, targetId, type);
+      if (result.error) socket.emit('error', { message: result.error });
+    });
+
+    socket.on('use_bombita', ({ code }) => {
+      const game = activeGames.get(code?.toUpperCase());
+      if (!game) return;
+      const toHide = game.useBombita(socket.id);
+      if (toHide) socket.emit('bombita_result', { hideOptions: toHide });
+    });
+
     socket.on('vote_rematch', ({ code }) => {
       const game = activeGames.get(code?.toUpperCase());
       if (!game) return;
