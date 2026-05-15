@@ -1,7 +1,7 @@
 {
   "categories": {
     "historia": {
-      "name": "Historia",
+      "name": "🏛️ Historia",
       "questions": [
         { "id": "hist_1", "question": "¿En qué año llegó Cristóbal Colón a América?", "options": ["1488", "1498", "1492", "1506"], "correct": 2 },
         { "id": "hist_2", "question": "¿En qué año comenzó la Primera Guerra Mundial?", "options": ["1914", "1918", "1912", "1920"], "correct": 0 },
@@ -12,7 +12,7 @@
       ]
     },
     "ciencia": {
-      "name": "Ciencia",
+      "name": "🔬 Ciencia",
       "questions": [
         { "id": "cien_1", "question": "¿Cuántos huesos tiene el cuerpo humano adulto?", "options": ["196", "206", "214", "220"], "correct": 1 },
         { "id": "cien_2", "question": "¿Cuál es el elemento más abundante en el universo?", "options": ["Helio", "Oxígeno", "Carbono", "Hidrógeno"], "correct": 3 },
@@ -23,7 +23,7 @@
       ]
     },
     "geografia": {
-      "name": "Geografía",
+      "name": "🌍 Geografía",
       "questions": [
         { "id": "geo_1", "question": "¿Cuál es el país más grande del mundo en superficie?", "options": ["Canadá", "China", "Estados Unidos", "Rusia"], "correct": 3 },
         { "id": "geo_2", "question": "¿Cuál es la montaña más alta del mundo?", "options": ["K2", "Aconcagua", "Mont Blanc", "Everest"], "correct": 3 },
@@ -34,7 +34,7 @@
       ]
     },
     "cultura_pop": {
-      "name": "Cultura Pop",
+      "name": "🎭 Cultura Pop",
       "questions": [
         { "id": "pop_1", "question": "¿En qué año se lanzó el primer iPhone?", "options": ["2005", "2007", "2009", "2003"], "correct": 1 },
         { "id": "pop_2", "question": "¿Quién escribió la saga de Harry Potter?", "options": ["J.R.R. Tolkien", "C.S. Lewis", "J.K. Rowling", "Roald Dahl"], "correct": 2 },
@@ -45,7 +45,7 @@
       ]
     },
     "deportes": {
-      "name": "Deportes",
+      "name": "🏅 Deportes",
       "questions": [
         { "id": "dep_1", "question": "¿Cuántos jugadores hay en cancha por equipo en el fútbol?", "options": ["10", "12", "9", "11"], "correct": 3 },
         { "id": "dep_2", "question": "¿Cuántos aros hay en la bandera olímpica?", "options": ["4", "6", "5", "3"], "correct": 2 },
@@ -56,7 +56,7 @@
       ]
     },
     "gaming": {
-      "name": "Gaming",
+      "name": "🎮 Gaming",
       "questions": [
         { "id": "gaming_1", "question": "¿Qué juego tiene creepers?", "options": ["Terraria", "Minecraft", "Roblox", "Fortnite"], "correct": 1 },
         { "id": "gaming_2", "question": "¿Qué empresa creó Mario Bros?", "options": ["Nintendo", "Sega", "Sony", "Capcom"], "correct": 0 },
@@ -91,7 +91,7 @@
       ]
     },
     "futbol": {
-      "name": "Fútbol",
+      "name": "⚽ Fútbol",
       "questions": [
         { "id": "futbol_1", "question": "¿Qué selección ganó el Mundial 2022?", "options": ["Francia", "Brasil", "Argentina", "España"], "correct": 2 },
         { "id": "futbol_2", "question": "¿Cuántos jugadores tiene un equipo en cancha?", "options": ["10", "11", "9", "12"], "correct": 1 },
@@ -126,7 +126,7 @@
       ]
     },
     "streamers": {
-      "name": "Streamers",
+      "name": "📺 Streamers",
       "questions": [
         { "id": "streamers_1", "question": "¿Quién creó la Velada del Año?", "options": ["Auron", "Ibai", "Coscu", "Momo"], "correct": 1 },
         { "id": "streamers_2", "question": "¿En qué plataforma se hacen streams principalmente?", "options": ["Netflix", "Twitch", "Spotify", "Steam"], "correct": 1 },
@@ -156,7 +156,7 @@
       ]
     },
     "series_peliculas": {
-      "name": "Series y Películas",
+      "name": "🎬 Series y Películas",
       "questions": [
         { "id": "series_1", "question": "¿Cómo se llama el protagonista de Breaking Bad?", "options": ["Walter White", "Jesse", "Saul", "Hank"], "correct": 0 },
         { "id": "series_2", "question": "¿En qué casa estaba Harry Potter?", "options": ["Slytherin", "Ravenclaw", "Gryffindor", "Hufflepuff"], "correct": 2 },
@@ -191,7 +191,7 @@
       ]
     },
     "internet": {
-      "name": "Internet",
+      "name": "🌐 Internet",
       "questions": [
         { "id": "internet_1", "question": "¿Qué app se hizo famosa por videos cortos?", "options": ["TikTok", "Skype", "Tumblr", "Facebook"], "correct": 0 },
         { "id": "internet_2", "question": "¿Quién compró Twitter/X?", "options": ["Bill Gates", "Mark Zuckerberg", "Elon Musk", "Jeff Bezos"], "correct": 2 },
@@ -221,7 +221,7 @@
       ]
     },
     "musica": {
-      "name": "Música",
+      "name": "🎵 Música",
       "questions": [
         { "id": "musica_1", "question": "¿Quién es conocido como el Rey del Pop?", "options": ["Drake", "Freddie Mercury", "Michael Jackson", "Elvis"], "correct": 2 },
         { "id": "musica_2", "question": "¿De qué país es BTS?", "options": ["Japón", "China", "Corea del Sur", "Tailandia"], "correct": 2 },
@@ -256,7 +256,7 @@
       ]
     },
     "argentina": {
-      "name": "Argentina",
+      "name": "🇦🇷 Argentina",
       "questions": [
         { "id": "arg_1", "question": "¿Cuál es la capital de Argentina?", "options": ["Rosario", "Córdoba", "Buenos Aires", "Mendoza"], "correct": 2 },
         { "id": "arg_2", "question": "¿Cuál de estas comidas es típica argentina?", "options": ["Ramen", "Sushi", "Asado", "Taco"], "correct": 2 },
@@ -291,7 +291,7 @@
       ]
     },
     "random": {
-      "name": "Random",
+      "name": "🎲 Random",
       "questions": [
         { "id": "random_1", "question": "¿Qué animal hace 'miau'?", "options": ["Perro", "Gato", "Vaca", "Caballo"], "correct": 1 },
         { "id": "random_2", "question": "¿Qué objeto usás para cortar papel?", "options": ["Tenedor", "Tijera", "Martillo", "Cuchara"], "correct": 1 },
