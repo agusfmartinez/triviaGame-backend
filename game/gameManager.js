@@ -42,6 +42,7 @@ class GameManager {
     this.questionStartTime = null;
     this.readyPlayers = new Set();
     this.currentRound = 0;
+    this.usedCategories = new Set();
     this.rematchVotes = new Set();
     this.rematchTimer = null;
     this.pyramidPositions = {};
@@ -57,6 +58,7 @@ class GameManager {
     this.pendingAttacks = [];
     this.effectsTimeout = null;
     this.lastAttackLog = [];
+    this.lastRoundAnswers = {};
   }
 
   start() {
@@ -70,7 +72,9 @@ class GameManager {
     this.categoryVotes = {};
 
     const allKeys = Object.keys(questions.categories);
-    this.availableCategories = shuffle(allKeys).slice(0, 4);
+    const fresh = allKeys.filter(k => !this.usedCategories.has(k));
+    const pool = fresh.length >= 4 ? fresh : allKeys; // fallback if ran out
+    this.availableCategories = shuffle(pool).slice(0, 4);
 
     this.broadcast('phase_changed', {
       phase: STATES.CATEGORY_VOTE,
@@ -105,6 +109,7 @@ class GameManager {
     const winnerIdx = tied[Math.floor(Math.random() * tied.length)];
     const winnerKey = this.availableCategories[winnerIdx];
     const winnerName = questions.categories[winnerKey].name;
+    this.usedCategories.add(winnerKey);
 
     this.gameQuestions = shuffle(questions.categories[winnerKey].questions).slice(0, QUESTIONS_PER_ROUND);
     this.currentQuestionIdx = 0;
@@ -207,6 +212,7 @@ class GameManager {
       timeLimit: RESULT_TIME,
     });
 
+    this.lastRoundAnswers = playerAnswers;
     this.currentQuestionIdx++;
     this.startTimer(RESULT_TIME, () => this.showScoreboard());
   }
@@ -240,6 +246,8 @@ class GameManager {
       isLast,
       availableAttacks,
       defenses: Object.fromEntries(this.playerDefenses),
+      lastRoundAnswers: this.lastRoundAnswers || {},
+      attackLog: this.lastAttackLog || [],
       readyCount: 0,
       totalPlayers: this.room.players.length,
       timeLimit: SCOREBOARD_TIME,
@@ -424,6 +432,8 @@ class GameManager {
     this.broadcast('phase_changed', {
       phase: STATES.PYRAMID_RESULT,
       movements,
+      positions: this.pyramidPositions,
+      pyramidHeight: this.pyramidHeight,
       correctIndex: q.correct,
       options: q.options,
       playerAnswers,
@@ -461,6 +471,7 @@ class GameManager {
       totalPlayers: this.room.players.length,
       availableAttacks: ['freeze', 'sticky', 'confuse', 'hide'],
       defenses: Object.fromEntries(this.playerDefenses),
+      attackLog: this.lastAttackLog || [],
       timeLimit: PYRAMID_SCOREBOARD_TIME,
     });
 
