@@ -17,6 +17,7 @@ const PYRAMID_RESULT_TIME = 8;
 const PYRAMID_SCOREBOARD_TIME = 30;
 const PYRAMID_MAX_QUESTIONS = 30;
 const PYRAMID_TOP_MOVERS = 3;
+const PYRAMID_WIN_BONUS = 500;
 
 function shuffle(arr) {
   const a = [...arr];
@@ -43,6 +44,7 @@ class GameManager {
     this.readyPlayers = new Set();
     this.currentRound = 0;
     this.usedCategories = new Set();
+    this.usedQuestions = new Set();
     this.rematchVotes = new Set();
     this.rematchTimer = null;
     this.pyramidPositions = {};
@@ -55,6 +57,7 @@ class GameManager {
     this.pyramidReadyTimer = null;
     this.pyramidReadyPlayers = new Set();
     this.playerDefenses = new Map();
+    this.activatedDefenses = new Set();
     this.pendingAttacks = [];
     this.effectsTimeout = null;
     this.lastAttackLog = [];
@@ -112,6 +115,7 @@ class GameManager {
     this.usedCategories.add(winnerKey);
 
     this.gameQuestions = shuffle(questions.categories[winnerKey].questions).slice(0, QUESTIONS_PER_ROUND);
+    this.gameQuestions.forEach(q => this.usedQuestions.add(q.question));
     this.currentQuestionIdx = 0;
 
     this.startQuestionIntro(winnerName);
@@ -221,6 +225,7 @@ class GameManager {
     this.phase = STATES.SCOREBOARD;
     this.readyPlayers = new Set();
     this.pendingAttacks = [];
+    this.activatedDefenses.clear();
     const scoreboard = this.getScoreboard();
     const isEndOfRound = this.currentQuestionIdx >= this.gameQuestions.length;
     const isLast = isEndOfRound && this.currentRound >= TOTAL_ROUNDS;
@@ -290,13 +295,33 @@ class GameManager {
 
     const scoreboard = this.getScoreboard();
     const n = this.room.players.length;
-    this.pyramidHeight = n * 2;
+    this.pyramidHeight = n * 3;
 
-    scoreboard.forEach((p, i) => {
-      this.pyramidPositions[p.id] = { nickname: p.nickname, position: n - i };
+    const topScore = scoreboard[0]?.score || 0;
+    const botScore = scoreboard[n - 1]?.score || 0;
+    const scoreRange = Math.max(topScore - botScore, 1);
+    const TOP_START = Math.floor(this.pyramidHeight / 2);
+
+    const rawPositions = scoreboard.map(p => {
+      const ratio = (p.score - botScore) / scoreRange;
+      const pos = Math.max(1, Math.round(1 + ratio * (TOP_START - 1)));
+      return { id: p.id, nickname: p.nickname, pos };
     });
 
-    const allQuestions = Object.values(questions.categories).flatMap(c => c.questions);
+    for (let i = 1; i < rawPositions.length; i++) {
+      if (rawPositions[i].pos >= rawPositions[i - 1].pos) {
+        rawPositions[i].pos = rawPositions[i - 1].pos - 1;
+      }
+      rawPositions[i].pos = Math.max(1, rawPositions[i].pos);
+    }
+
+    rawPositions.forEach(({ id, nickname, pos }) => {
+      this.pyramidPositions[id] = { nickname, position: pos };
+    });
+
+    const allQuestions = Object.values(questions.categories)
+      .flatMap(c => c.questions)
+      .filter(q => !this.usedQuestions.has(q.question));
     this.pyramidQuestions = shuffle(allQuestions);
     this.pyramidQuestionIdx = 0;
     this.pyramidWinnerId = null;
@@ -413,8 +438,9 @@ class GameManager {
         pos.position = Math.min(pos.position + 1, this.pyramidHeight);
         movements[p.id] = 1;
       } else if (!correct) {
-        if (this.playerDefenses.get(p.id) === 'no_drop') {
+        if (this.playerDefenses.get(p.id) === 'no_drop' && this.activatedDefenses.has(p.id)) {
           this.playerDefenses.set(p.id, null);
+          this.activatedDefenses.delete(p.id);
           movements[p.id] = 0;
         } else {
           pos.position = Math.max(pos.position - 1, 1);
@@ -461,6 +487,7 @@ class GameManager {
     this.phase = STATES.PYRAMID_SCOREBOARD;
     this.pyramidReadyPlayers = new Set();
     this.pendingAttacks = [];
+    this.activatedDefenses.clear();
 
     this.broadcast('phase_changed', {
       phase: STATES.PYRAMID_SCOREBOARD,
@@ -496,6 +523,10 @@ class GameManager {
   endPyramidGame(winnerId) {
     this.phase = STATES.GAME_OVER;
 
+    if (winnerId) {
+      this.scores[winnerId] = (this.scores[winnerId] || 0) + PYRAMID_WIN_BONUS;
+    }
+
     const scoreboard = this.room.players
       .map(p => ({
         id: p.id,
@@ -503,7 +534,11 @@ class GameManager {
         position: this.pyramidPositions[p.id]?.position || 1,
         score: this.scores[p.id] || 0,
       }))
-      .sort((a, b) => b.position - a.position || b.score - a.score);
+      .sort((a, b) => {
+        if (winnerId && a.id === winnerId) return -1;
+        if (winnerId && b.id === winnerId) return 1;
+        return b.position - a.position || b.score - a.score;
+      });
 
     const winnerPlayer = winnerId
       ? this.room.players.find(p => p.id === winnerId)
@@ -639,8 +674,9 @@ class GameManager {
       const target = this.room.players.find(p => p.id === targetId);
       if (!target) continue;
 
-      if (this.playerDefenses.get(targetId) === 'shield') {
+      if (this.playerDefenses.get(targetId) === 'shield' && this.activatedDefenses.has(targetId)) {
         this.playerDefenses.set(targetId, null);
+        this.activatedDefenses.delete(targetId);
         attackLog.push({ attackerNickname, targetNickname: target.nickname, type, blocked: true, wasted: false });
         continue;
       }
@@ -672,6 +708,14 @@ class GameManager {
 
     this.playerDefenses.set(playerId, null);
     return toHide;
+  }
+
+  activateDefense(playerId) {
+    const inScoreboard = this.phase === STATES.SCOREBOARD || this.phase === STATES.PYRAMID_SCOREBOARD;
+    if (!inScoreboard) return;
+    const defense = this.playerDefenses.get(playerId);
+    if (!defense || defense === 'bombita') return;
+    this.activatedDefenses.add(playerId);
   }
 
   // ───────────────────────────────────────────────────────────────────────────

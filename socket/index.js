@@ -98,6 +98,12 @@ function registerSocketHandlers(io) {
       if (toHide) socket.emit('bombita_result', { hideOptions: toHide });
     });
 
+    socket.on('activate_defense', ({ code }) => {
+      const game = activeGames.get(code?.toUpperCase());
+      if (!game) return;
+      game.activateDefense(socket.id);
+    });
+
     socket.on('vote_rematch', ({ code }) => {
       const game = activeGames.get(code?.toUpperCase());
       if (!game) return;
